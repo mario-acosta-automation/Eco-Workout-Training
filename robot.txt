@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://tudominio.github.io/sitemap.xml

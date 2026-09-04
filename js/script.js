@@ -1,10 +1,6 @@
 /**
- * script.js
- * EcoWorkout - CV Digital
- * Funcionalidades:
- * 1. Menú hamburguesa para móviles.
- * 2. Carga de precios desde Google Sheets (API gviz).
- * 3. Carrusel de competencias deportivas.
+ * script.js - EcoWorkout CV Digital
+ * Funcionalidades: menú hamburguesa, precios desde Google Sheets y carrusel de competencias.
  */
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -18,11 +14,7 @@ document.addEventListener('DOMContentLoaded', function () {
     menuToggle.addEventListener('click', function () {
         mainNav.classList.toggle('open');
         const icon = this.querySelector('i');
-        if (mainNav.classList.contains('open')) {
-            icon.className = 'fas fa-times';
-        } else {
-            icon.className = 'fas fa-bars';
-        }
+        icon.className = mainNav.classList.contains('open') ? 'fas fa-times' : 'fas fa-bars';
     });
 
     document.querySelectorAll('.header-nav a').forEach(link => {
@@ -33,63 +25,42 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // ================================================================
-    // 2. PRECIOS DESDE GOOGLE SHEETS
+    // 2. PRECIOS DESDE GOOGLE SHEETS (CORREGIDO)
     // ================================================================
-    // ✅ CONFIGURACIÓN CORRECTA PARA TU HOJA
-    const SHEET_ID = '2PACX-1vRN13ajUpkzJ5rQWFOcS9XNWm3vxNA5wlwVTrapwFiHzW3SJaCemdjrRec-rjB2a6u2Rq1HtFLdQmxT';
-    const SHEET_GID = '1546839515';
-    const SHEET_NAME = 'precios pagina';
 
-    // URL con gid (más fiable que usar el nombre de la pestaña)
+    // ✅ REEMPLAZA ESTOS DATOS CON LOS TUYOS (obtenidos de la URL de edición)
+    const SHEET_ID = 'TU_ID_DE_EDICION_AQUI'; // Ejemplo: '1ABC123_xyz'
+    const SHEET_GID = '1546839515';           // El gid de la pestaña 'precios pagina'
+    const SHEET_NAME = 'precios pagina';      // Nombre exacto de la pestaña
+
+    // URL para la API de Google Visualization (usando gid, más fiable)
     const URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${SHEET_GID}`;
+
+    // URL alternativa usando el nombre de la pestaña (por si falla la anterior)
+    const URL_ALT = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
 
     const pricingContainer = document.getElementById('pricing-container');
 
-    // Mostrar spinner de carga
+    // Mostrar mensaje de carga
     pricingContainer.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-pulse"></i> Cargando planes...</div>`;
 
-    fetch(URL)
-        .then(response => response.text())
-        .then(text => {
-            // La respuesta viene con un prefijo: /*O_o*/ google.visualization.Query.setResponse({...});
-            const jsonStart = text.indexOf('{');
-            const jsonEnd = text.lastIndexOf('}') + 1;
-            if (jsonStart === -1 || jsonEnd === 0) {
-                throw new Error('Formato de respuesta inválido');
-            }
-            const jsonString = text.substring(jsonStart, jsonEnd);
-            const parsed = JSON.parse(jsonString);
-            renderPricing(parsed);
-        })
-        .catch(error => {
-            console.error('Error cargando precios:', error);
-            pricingContainer.innerHTML = `
-                <div style="background:#fce4ec; padding:1rem; border-radius:12px; border-left:4px solid #c62828;">
-                    <strong>⚠️ No se pudieron cargar los precios.</strong><br>
-                    Verifica que tu hoja esté publicada (Archivo > Compartir > Publicar en la web).
-                </div>
-            `;
-        });
-
+    // Función para renderizar los precios
     function renderPricing(data) {
         if (!data.table || !data.table.rows || data.table.rows.length === 0) {
-            pricingContainer.innerHTML = '<p style="color: #4a6a4a;">No hay planes disponibles en este momento. Contáctame directamente.</p>';
+            pricingContainer.innerHTML = '<p style="color: #4a6a4a;">No hay planes disponibles. Contáctame directamente.</p>';
             return;
         }
 
         const cols = data.table.cols.map(col => col.label);
-
         let html = '';
         data.table.rows.forEach(row => {
             const cells = row.c;
             if (!cells || cells.length === 0) return;
-
             const values = {};
             cells.forEach((cell, index) => {
                 const label = cols[index] || `Columna ${index + 1}`;
                 values[label] = cell ? cell.v : '';
             });
-
             const keys = Object.keys(values);
             const plan = values[keys[0]] || 'Plan';
             const precio = values[keys[1]] || '';
@@ -104,11 +75,61 @@ document.addEventListener('DOMContentLoaded', function () {
             `;
         });
 
-        pricingContainer.innerHTML = html || '<p style="color: #4a6a4a;">No se encontraron datos de precios.</p>';
+        pricingContainer.innerHTML = html || '<p style="color: #4a6a4a;">No se encontraron datos.</p>';
+    }
+
+    // Función para intentar la carga con diferentes URLs
+    function fetchPricing(url) {
+        fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                return response.text();
+            })
+            .then(text => {
+                // Extraer el JSON de la respuesta (tiene prefijo)
+                const jsonStart = text.indexOf('{');
+                const jsonEnd = text.lastIndexOf('}') + 1;
+                if (jsonStart === -1 || jsonEnd === 0) throw new Error('Formato de respuesta inválido');
+                const jsonString = text.substring(jsonStart, jsonEnd);
+                const parsed = JSON.parse(jsonString);
+                renderPricing(parsed);
+            })
+            .catch(error => {
+                console.error('Error con la URL:', url, error);
+                // Si falla la primera URL, probar la alternativa
+                if (url === URL) {
+                    console.warn('Intentando con URL alternativa (usando sheet)...');
+                    fetchPricing(URL_ALT);
+                } else {
+                    // Si ambas fallan, mostrar mensaje de error
+                    pricingContainer.innerHTML = `
+                        <div style="background:#fce4ec; padding:1rem; border-radius:12px; border-left:4px solid #c62828;">
+                            <strong>⚠️ No se pudieron cargar los precios.</strong><br>
+                            Verifica que tu hoja esté publicada (Archivo > Compartir > Publicar en la web) y que el ID de la hoja sea el correcto.
+                            <br><br>
+                            <strong>ID usado:</strong> ${SHEET_ID}<br>
+                            <strong>gid usado:</strong> ${SHEET_GID}<br>
+                            <strong>Nombre de pestaña:</strong> ${SHEET_NAME}
+                        </div>
+                    `;
+                }
+            });
+    }
+
+    // Verificar que el ID no sea el de ejemplo
+    if (SHEET_ID === 'TU_ID_DE_EDICION_AQUI') {
+        pricingContainer.innerHTML = `
+            <div style="background:#fff3e0; padding:1rem; border-radius:12px; border-left:4px solid #e65100;">
+                <strong>⚠️ Configuración pendiente:</strong> Reemplaza <code>TU_ID_DE_EDICION_AQUI</code> en el archivo <code>js/script.js</code> con el ID de tu hoja de cálculo (el que aparece en la URL de edición).
+            </div>
+        `;
+    } else {
+        // Iniciar la carga
+        fetchPricing(URL);
     }
 
     // ================================================================
-    // 3. CARRUSEL DE COMPETENCIAS
+    // 3. CARRUSEL DE COMPETENCIAS (sin cambios)
     // ================================================================
     const track = document.getElementById('carouselTrack');
     const prevBtn = document.getElementById('prevBtn');

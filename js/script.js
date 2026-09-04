@@ -1,7 +1,10 @@
 /**
  * script.js
  * EcoWorkout - CV Digital
- * Funcionalidades: Header fijo con menú hamburguesa, eco workout desde Google Sheets, Carrusel de Competencias
+ * Funcionalidades:
+ * 1. Menú hamburguesa para móviles.
+ * 2. Carga de precios desde Google Sheets (API gviz).
+ * 3. Carrusel de competencias deportivas.
  */
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -30,32 +33,68 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // ================================================================
-    // 2. eco workout DESDE GOOGLE SHEETS
+    // 2. PRECIOS DESDE GOOGLE SHEETS
     // ================================================================
-    const SHEET_ID = 'TU_SHEET_ID_AQUI'; // <--- REEMPLAZA ESTO
-    const SHEET_NAME = 'eco workout pagina';
-    const URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+    // ✅ CONFIGURACIÓN CORRECTA PARA TU HOJA
+    const SHEET_ID = '2PACX-1vRN13ajUpkzJ5rQWFOcS9XNWm3vxNA5wlwVTrapwFiHzW3SJaCemdjrRec-rjB2a6u2Rq1HtFLdQmxT';
+    const SHEET_GID = '1546839515';
+    const SHEET_NAME = 'precios pagina';
+
+    // URL con gid (más fiable que usar el nombre de la pestaña)
+    const URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${SHEET_GID}`;
+
     const pricingContainer = document.getElementById('pricing-container');
+
+    // Mostrar spinner de carga
+    pricingContainer.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-pulse"></i> Cargando planes...</div>`;
+
+    fetch(URL)
+        .then(response => response.text())
+        .then(text => {
+            // La respuesta viene con un prefijo: /*O_o*/ google.visualization.Query.setResponse({...});
+            const jsonStart = text.indexOf('{');
+            const jsonEnd = text.lastIndexOf('}') + 1;
+            if (jsonStart === -1 || jsonEnd === 0) {
+                throw new Error('Formato de respuesta inválido');
+            }
+            const jsonString = text.substring(jsonStart, jsonEnd);
+            const parsed = JSON.parse(jsonString);
+            renderPricing(parsed);
+        })
+        .catch(error => {
+            console.error('Error cargando precios:', error);
+            pricingContainer.innerHTML = `
+                <div style="background:#fce4ec; padding:1rem; border-radius:12px; border-left:4px solid #c62828;">
+                    <strong>⚠️ No se pudieron cargar los precios.</strong><br>
+                    Verifica que tu hoja esté publicada (Archivo > Compartir > Publicar en la web).
+                </div>
+            `;
+        });
 
     function renderPricing(data) {
         if (!data.table || !data.table.rows || data.table.rows.length === 0) {
             pricingContainer.innerHTML = '<p style="color: #4a6a4a;">No hay planes disponibles en este momento. Contáctame directamente.</p>';
             return;
         }
+
         const cols = data.table.cols.map(col => col.label);
+
         let html = '';
         data.table.rows.forEach(row => {
             const cells = row.c;
             if (!cells || cells.length === 0) return;
+
             const values = {};
             cells.forEach((cell, index) => {
                 const label = cols[index] || `Columna ${index + 1}`;
                 values[label] = cell ? cell.v : '';
             });
+
             const keys = Object.keys(values);
             const plan = values[keys[0]] || 'Plan';
-            const desc = values[keys[1]] || '';
-            const precio = values[keys[2]] || '';
+            const precio = values[keys[1]] || '';
+            const desc = values[keys[2]] || '';
+
             html += `
                 <div class="pricing-card">
                     <h4>${plan}</h4>
@@ -64,35 +103,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
             `;
         });
-        pricingContainer.innerHTML = html || '<p style="color: #4a6a4a;">No se encontraron datos de eco workout.</p>';
-    }
 
-    if (SHEET_ID === 'TU_SHEET_ID_AQUI') {
-        pricingContainer.innerHTML = `
-            <div style="background:#fff3e0; padding:1rem; border-radius:12px; border-left:4px solid #e65100;">
-                <strong>⚠️ Configuración pendiente:</strong> Reemplaza <code>TU_SHEET_ID_AQUI</code> en <code>js/script.js</code>.
-            </div>
-        `;
-    } else {
-        pricingContainer.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-pulse"></i> Cargando planes...</div>`;
-        fetch(URL)
-            .then(response => response.text())
-            .then(text => {
-                const jsonStart = text.indexOf('{');
-                const jsonEnd = text.lastIndexOf('}') + 1;
-                if (jsonStart === -1 || jsonEnd === 0) throw new Error('Formato inválido');
-                const jsonString = text.substring(jsonStart, jsonEnd);
-                const parsed = JSON.parse(jsonString);
-                renderPricing(parsed);
-            })
-            .catch(error => {
-                console.error('Error cargando eco workout:', error);
-                pricingContainer.innerHTML = `
-                    <div style="background:#fce4ec; padding:1rem; border-radius:12px; border-left:4px solid #c62828;">
-                        <strong>⚠️ No se pudieron cargar los eco workout.</strong> Verifica que tu hoja esté publicada.
-                    </div>
-                `;
-            });
+        pricingContainer.innerHTML = html || '<p style="color: #4a6a4a;">No se encontraron datos de precios.</p>';
     }
 
     // ================================================================
@@ -103,7 +115,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const nextBtn = document.getElementById('nextBtn');
     const dotsContainer = document.getElementById('carouselDots');
 
-    // DATOS - actualiza las rutas de imágenes según tus archivos
     const competenciasData = [
         { nombre: 'Corre como el viento (FAC)', img: 'assets/competencias/corre-viento.jpg' },
         { nombre: 'Carrera por la Policía', img: 'assets/competencias/carrera-policia.jpg' },
